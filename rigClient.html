@@ -1,0 +1,168 @@
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            #clocks {
+                display: flex;
+                flex-direction: row;
+                justify-content: space-evenly;
+                margin-top: 20px;
+                width: 100%;
+                font-family: sans-serif;
+                font-size: 1.25rem;
+            }
+            .s-meter-container {
+                display:flex;
+                width: 300px;
+                height: 300px;
+                overflow: hidden;
+                padding-bottom: 20px;
+                margin-top: 20px;
+                margin-left: auto;
+                margin-right: auto;
+            }
+
+            #meterCanvas {
+                width: 300px;
+                height: 300px; 
+                margin-top: 0px;
+            }
+
+            radial-gauge {
+                margin-top: 1rem;
+            }
+            #data-smeter {
+                z-index: 100;
+                font-size: 1rem;
+                margin-top: 0;
+                width: 3rem;
+                margin-left: auto;
+                margin-right: auto;
+            }
+            .freq_mode {
+                margin-top: 1rem;
+                text-align: center;
+            }
+            .seven-segment {
+                font-family: roboto, monospace;
+                font-size: 1.5rem;
+                color: blue;
+            }
+            .mode {
+                font-family: roboto, monospace;
+                font-size: 1.5rem;
+            }
+        </style>
+        <script src="gauge.min.js"></script>
+        <script lang="javascript">
+            const signalStrength = 0;
+            var gauge = undefined;
+            var local_clock;
+            var utc_clock;
+            var vfo;
+            var mode;
+
+            const gaugeOptions /*: CanvasGauges.RadialGaugeOptions */ = {
+                units: false,
+                "title": "Signal Strength",
+                minValue: 0,
+                maxValue: 15,
+                startAngle: 90,
+                ticksAngle: 180,
+                valueBox: false,
+                majorTicks: [
+                "0",
+                "1",
+                " ",
+                "3",
+                " ",
+                "5",
+                " ",
+                "7",
+                " ",
+                "9",
+                "",
+                "+20",
+                "",
+                "+40",
+                "",
+                "+60"
+                ],
+                minorTicks: 2,
+                strokeTicks: true,
+                highlights: [
+                {
+                    "from": 9,
+                    "to": 15,
+                    "color": "rgba(200, 50, 50, .75)"
+                }
+                ],
+                colorPlate: "#fff",
+                borderShadowWidth: 0,
+                borders: false,
+                needleType: "arrow",
+                needleWidth: 2,
+                needleCircleSize: 7,
+                needleCircleOuter: true,
+                needleCircleInner: false,
+                animationDuration: 200,
+                animationRule: "linear",
+                renderTo: "meterCanvas"
+            };
+
+            const initSMeter = () => {
+                gauge = new RadialGauge(gaugeOptions);
+
+                // gauge doesn't show unless a value > 0 is set
+                gauge.value = 0.1;
+                setTimeout(() => gauge.value = 0, 250);
+            }
+
+            const acceptSMeter = (strength) => {
+                document.getElementById("data-smeter").innerHTML = `s ${strength}`;
+                gauge.value = Number(strength);
+            }
+
+            const acceptVFO = (freq) => {
+                vfo.innerHTML = `${freq}`;
+            }
+
+            const acceptMode = (modeStr) => {
+                mode.innerHTML = `MHz ${modeStr}`;
+            }
+
+            const updateClocks = () => {
+                const now = new Date(); 
+                local_clock.innerHTML = now.toTimeString().substr(0,8);
+                utc_clock.innerHTML = now.toUTCString().substr(17,8);
+            }
+        </script>
+    </head>
+    <body width="100%" height="100%">  
+        <div id="clocks">
+            <div>Local: <span id="local-time" class="clock"></span></div>
+            <div >UTC: <span id="utc-time" class="clock"></span></div>
+        </div>
+
+        <div class="freq_mode">
+            <span id="vfo" class="seven-segment"></span>&nbsp;&nbsp;<span id="mode" class="mode"></span>
+        </div>
+
+        <div class="s-meter-container" #meterContainer>
+            <canvas id="meterCanvas" style="width:100%; height:100%;"></canvas>
+        </div>
+
+        <div id="data-smeter" width="100%" height="1rem"></div>
+        <script>
+           window.addEventListener('pywebviewready', function() {
+                console.log("pywebbview is ready");
+                initSMeter();
+           });
+           local_clock = document.getElementById('local-time');
+           utc_clock = document.getElementById('utc-time');
+           vfo = document.getElementById('vfo');
+           mode = document.getElementById('mode');
+           setInterval(updateClocks, 1);
+        </script>
+    </body>  
+</html>
