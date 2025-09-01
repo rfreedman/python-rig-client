@@ -11,4 +11,4 @@ The app works with the HamLib 'rigctl' or 'rigctld' CAT control programs: https:
 HamLib/rigctl(d) presents a text-command interface via tcp/ip, so this program can be run anywhere that can reach the computer
 that is running rigctl(d) and is connected to the radio to be monitored.
 
-![the rig-client user interface](rig-client.png "rig-client user interface")
+<center><img src="rig-client.png" width="50% alt="rig-client user interface"></center>
