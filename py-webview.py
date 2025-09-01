@@ -7,6 +7,7 @@ import time
 from datetime import datetime
 import random
 import re  
+import radio
 
 def getMode(): 
      # TODO: use the HamLib rigctl api to get the mode from the radio
@@ -112,4 +113,8 @@ thread = threading.Thread(target=bg_thread, args=(window,))
 thread.daemon = True
 thread.start()
 
-webview.start(debug=True)
+radioThread = threading.Thread(target=radio.sendVFORequest)
+radioThread.daemon = True
+radioThread.start()
+
+webview.start(debug=False)
