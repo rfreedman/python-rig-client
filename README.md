@@ -1,6 +1,6 @@
 # python-rig-client
 
-A Python and py-webview re-implementation of of https://github.com/rfreedman/rig-client
+A Python and py-webview re-implementation of https://github.com/rfreedman/rig-client
 which was based on Electron.
 
 Displays a "dashboard" for an HF ham radio, displaying the current local and UTC time,
