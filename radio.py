@@ -17,6 +17,9 @@ FREQ_RESPONSE_PREFIX = "get_freq:|Frequency: "
 COMMAND_GET_SIGNAL_STRENGTH = "|\\get_level STRENGTH\n"
 SIGNAL_STRENGTH_RESPONSE_PREFIX = "get_level: STRENGTH|"
 
+COMMAND_GET_MODE = "|\\get_mode\n"
+MODE_RESPONSE_PREFIX = "get_mode:|Mode: "
+
 
 
 def strengthToSLevel(strengthStr):
@@ -49,9 +52,24 @@ def response_code_from_status(status):
     return status[len(COMMAND_STATUS_PREFIX):]
 
 def parseResponse(response):
+    # handle socket disconnect
+    if response == "":
+        return ""
+
     response_status = response[-(len(COMMAND_SUCCESS)+1):]
     if(not response_status[-1].isdigit()): # trim trailing carriage return and or linefeed
         response_status = response_status[:-1]
+
+    if response.startswith(MODE_RESPONSE_PREFIX):
+        if response_status == COMMAND_SUCCESS:
+            # e.g. response == "get_mode:|Mode: USB|Passband: 2400|RPRT 0"
+            val = parseResponseValue(response, MODE_RESPONSE_PREFIX, COMMAND_SUCCESS)
+            
+            # val includes passband info, e.g. "USB|Passband: 2400", so pick off just the mode
+            parts = val.split('|')
+            val = parts[0]
+            return f"mode:{val}"
+
 
     if response.startswith(FREQ_RESPONSE_PREFIX):
         if response_status == COMMAND_SUCCESS:
@@ -79,18 +97,23 @@ def parseResponse(response):
     return ""
 
 def sendRequest(socket, command, responseQueue):
-    socket.sendall(command.encode())
-    data = socket.recv(1024)
-    rawResponse = data.decode()
-    # print(f"raw: {rawResponse}")
-    responseValue = parseResponse(rawResponse)
-    if len(responseValue) > 0:
-        responseQueue.put(responseValue)
+    try:
+        socket.sendall(command.encode())
+        data = socket.recv(1024)
+        rawResponse = data.decode()
+        responseValue = parseResponse(rawResponse)
+        if len(responseValue) > 0:
+            responseQueue.put(responseValue)
+    except Exception as e:
+        print(f"Error in sendRequest: {e}")
+        pass
 
 def data_loop(responseQueue):
+    # TODO: figure out how to reconnect if the socket is closed at the other end
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((HOST, PORT))
         while True:
+            sendRequest(s, COMMAND_GET_MODE, responseQueue)
             sendRequest(s, COMMAND_GET_FREQ, responseQueue)
             sendRequest(s, COMMAND_GET_SIGNAL_STRENGTH, responseQueue)
             time.sleep(1)

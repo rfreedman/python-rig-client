@@ -10,24 +10,16 @@ import re
 import radio
 from queue import Queue
 
-def getMode(): 
-     # TODO: use the HamLib rigctl api to get the mode from the radio
-     return 'USB'
-
 def gaugeValueToSLabel(gaugeValue):
     floatValue = float(gaugeValue)
+
+    # values <= 9 are S-meter values, used directly
     if floatValue <= 9:
         return f"S{floatValue}"
     
-    return f"S9+{round(((floatValue - 9) * 10))}"
-
-def updateSMeter(jsWindow, gaugeValue):
-    cmd = f'acceptSMeter("{gaugeValue}");'
-    jsWindow.run_js(cmd) 
-
-    sLabel = gaugeValueToSLabel(gaugeValue)
-    cmd = f'acceptSValue("{sLabel}");' 
-    jsWindow.run_js(cmd)  
+    # values > 9 are "S9 + n dBm", where n == 1 is 10dBm, 2 is 20dBm, etc.,
+    # so subtract 9 before using the value, and then multiply by 10
+    return f"S9+{round(((floatValue - 9) * 10))}" 
 
 def formatFreq(freqHz):
     freq_len = len(freqHz) # 7 or 8 depending on band, e.g. length for 7MHz is 7, length for 14MHz is 8
@@ -57,6 +49,18 @@ def formatFreq(freqHz):
 
     return formatted
 
+def updateMode(jsWindow, mode): 
+     cmd = f'acceptMode("{mode}");'
+     jsWindow.run_js(cmd) 
+     
+def updateSMeter(jsWindow, gaugeValue):
+    cmd = f'acceptSMeter("{gaugeValue}");'
+    jsWindow.run_js(cmd) 
+
+    sLabel = gaugeValueToSLabel(gaugeValue)
+    cmd = f'acceptSValue("{sLabel}");' 
+    jsWindow.run_js(cmd) 
+
 def updateFreq(jsWindow, freq):
     formatted = formatFreq(freq)
     cmd = f'acceptVFO("{formatted}");'
@@ -82,6 +86,9 @@ def bg_thread(jsWindow, queue):
                 case "signal_strength":
                     slevel = parts[1]
                     updateSMeter(jsWindow, slevel)
+
+                case "mode":
+                    updateMode(jsWindow, parts[1])
 
                 case _:
                     print(f"unhandled: parts[0] == {parts[0]}")
