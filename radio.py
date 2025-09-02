@@ -8,17 +8,16 @@ from datetime import datetime
 HOST = 'houseserver'  # The server's hostname or IP address
 PORT = 4532           # The port used by the server
 
+COMMAND_STATUS_PREFIX = "|RPRT "
+COMMAND_SUCCESS = "|RPRT 0"
+
 COMMAND_GET_FREQ = "|f\n"
-FREQ_RESPONSE_PREFIX = "get_freq:|Frequency: ";
-FREQ_RESPONSE_PREFIX_LEN = len(FREQ_RESPONSE_PREFIX)
-FREQ_RESPONSE_SUFFIX = "|RPRT 0"
-FREQ_RESPONSE_SUFFIX_LEN = len(FREQ_RESPONSE_SUFFIX)
+FREQ_RESPONSE_PREFIX = "get_freq:|Frequency: "
 
 COMMAND_GET_SIGNAL_STRENGTH = "|l STRENGTH\n"
 SIGNAL_STRENGTH_RESPONSE_PREFIX = "get_level: STRENGTH|"
-SIGNAL_STRENGTH_RESPONSE_PREFIX_LEN = len(SIGNAL_STRENGTH_RESPONSE_PREFIX)
-SIGNAL_STRENGTH_RESPONSE_SUFFIX = "|RPRT 0"
-SIGNAL_STRENGTH_RESPONSE_SUFFIX_LEN = len(SIGNAL_STRENGTH_RESPONSE_SUFFIX)
+
+
 
 def strengthToSLevel(strengthStr):
     strength = int(strengthStr)
@@ -40,19 +39,40 @@ def strengthToSLevel(strengthStr):
     if strength > 0:
       return (strength / 10) + 9 
 
+def parseResponseValue(str, prefix, suffix):
+    val = str[len(prefix):]
+    val = val[:-(len(suffix) + 1)]
+    return val    
+
+def response_code_from_status(status):
+    return status[len(COMMAND_STATUS_PREFIX):]
 
 def parseResponse(response):
+    response_status = response[-(len(COMMAND_SUCCESS)+1):]
+    if(not response_status[-1].isdigit()): # trim trailing carriage return and or linefeed
+        response_status = response_status[:-1]
+
     if response.startswith(FREQ_RESPONSE_PREFIX):
-        val = response[FREQ_RESPONSE_PREFIX_LEN:] # e.g. 14074840|RPRT 0
-        val = val[:FREQ_RESPONSE_SUFFIX_LEN]
-        return f"freq:{val}"
+        if response_status == COMMAND_SUCCESS:
+            # e.g. response == "get_freq:|Frequency: 14074100|RPRT 0"
+            val = parseResponseValue(response, FREQ_RESPONSE_PREFIX, COMMAND_SUCCESS)
+            return f"freq:{val}"
+        else:
+            response_code = response_code_from_status(response_status)
+            print(f"bad get_freq command response code: {response_code}")
+            return ""
+        
     
     if response.startswith(SIGNAL_STRENGTH_RESPONSE_PREFIX):
-        val = response[SIGNAL_STRENGTH_RESPONSE_PREFIX_LEN:]  # e.g. '21|RPRT 0'
-        dBm = val[:-(SIGNAL_STRENGTH_RESPONSE_SUFFIX_LEN+1)] # e.g. '21'
-        # todo - convert from dBm to s-units
-        sLevel = strengthToSLevel(dBm)
-        return f"signal_strength:{round(sLevel,1)}" # sLevel is 0-15 for the gauge, dBm is the s-number label
+        if response_status == COMMAND_SUCCESS:
+            # e.g. response == "get_level: STRENGTH|-29|RPRT 0"
+            dBm = parseResponseValue(response, SIGNAL_STRENGTH_RESPONSE_PREFIX, COMMAND_SUCCESS)
+            sLevel = strengthToSLevel(dBm)
+            return f"signal_strength:{round(sLevel,1)}" # sLevel is 0-15 for the gauge
+        else:
+            response_code = response_code_from_status(response_status)
+            print(f"bad get_signal_strength command response code: {response_code}")
+            return f"signal_strength:0"
 
     print(f"Unhandled response: {response}")
     return ""

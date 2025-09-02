@@ -30,12 +30,32 @@ def updateSMeter(jsWindow, gaugeValue):
     jsWindow.run_js(cmd)  
 
 def formatFreq(freqHz):
-    # convert to MHz
-    freqMHz = int(freqHz) / 1000000
+    freq_len = len(freqHz) # 7 or 8 depending on band, e.g. length for 7MHz is 7, length for 14MHz is 8
 
-    # format to text, such that, e.g. 742791Hz becomes '7.427.910' instead of '7.42791'
-    freqStr = f"{freqMHz}0"
-    return freqStr[:-3] + "." + freqStr[-3:]
+    beginning = ""
+
+    # first 1 or 2 digits, depending on band
+    match freq_len:
+        case 7:
+            beginning = freqHz[0:1] 
+        case 8:
+            beginning = freqHz[0:2]
+
+    # next 3 digits
+    middle = freqHz[-6:-3]
+
+    # last 3 digits, but trim trailing zeros 
+    end = freqHz[-3:]
+    while end[-1:] == '0':
+        end = end[:-1]
+
+    formatted = f"{beginning}.{middle}"
+
+    # only add the remaining digits if not blank
+    if len(end) > 0:
+        formatted = f"{formatted}.{end}"
+
+    return formatted
 
 def updateFreq(jsWindow, freq):
     formatted = formatFreq(freq)
@@ -54,6 +74,7 @@ def bg_thread(jsWindow, queue):
             parts = response.split(":")
             command = parts[0]
             value = parts[1]
+
             match command:
                 case "freq":
                     updateFreq(jsWindow, parts[1])
@@ -79,4 +100,4 @@ radioThread = threading.Thread(target=radio.data_loop, args=(queue, ))
 radioThread.daemon = True
 radioThread.start()
 
-webview.start(debug=True)
+webview.start(debug=False)
