@@ -14,7 +14,6 @@ COMMAND_SUCCESS = "|RPRT 0"
 COMMAND_GET_FREQ = "|\\get_freq\n"
 FREQ_RESPONSE_PREFIX = "get_freq:|Frequency: "
 
-# COMMAND_GET_SIGNAL_STRENGTH = "|l STRENGTH\n"
 COMMAND_GET_SIGNAL_STRENGTH = "|\\get_level STRENGTH\n"
 SIGNAL_STRENGTH_RESPONSE_PREFIX = "get_level: STRENGTH|"
 
@@ -41,6 +40,7 @@ def strengthToSLevel(strengthStr):
       return (strength / 10) + 9 
 
 def parseResponseValue(str, prefix, suffix):
+    # trim off the prefix and the suffix
     val = str[len(prefix):]
     val = val[:-(len(suffix) + 1)]
     return val    
