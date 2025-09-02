@@ -33,11 +33,13 @@
             }
             #data-smeter {
                 z-index: 100;
+                font-family: roboto, monospace;
                 font-size: 1rem;
-                margin-top: 0;
+                margin-top: -130px;
                 width: 3rem;
                 margin-left: auto;
                 margin-right: auto;
+                position: relative;
             }
             .freq_mode {
                 margin-top: 1rem;
@@ -118,9 +120,12 @@
                 setTimeout(() => gauge.value = 0, 250);
             }
 
-            const acceptSMeter = (strength) => {
-                document.getElementById("data-smeter").innerHTML = `s ${strength}`;
-                gauge.value = Number(strength);
+            const acceptSMeter = (gaugeValue) => {
+                gauge.value = Number(gaugeValue);
+            }
+
+            const acceptSValue = (sValue) => {
+                document.getElementById("data-smeter").innerHTML = sValue;
             }
 
             const acceptVFO = (freq) => {
