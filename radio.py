@@ -20,7 +20,7 @@ SIGNAL_STRENGTH_RESPONSE_PREFIX = "get_level: STRENGTH|"
 COMMAND_GET_MODE = "|\\get_mode\n"
 MODE_RESPONSE_PREFIX = "get_mode:|Mode: "
 
-
+client_socket = None
 
 def strengthToSLevel(strengthStr):
     strength = int(strengthStr)
@@ -96,24 +96,58 @@ def parseResponse(response):
     print(f"Unhandled response: {response}")
     return ""
 
-def sendRequest(socket, command, responseQueue):
+def sendRequest(command, responseQueue):
+    global client_socket
+
     try:
-        socket.sendall(command.encode())
-        data = socket.recv(1024)
+        client_socket.sendall(command.encode())
+        data = client_socket.recv(1024)
         rawResponse = data.decode()
         responseValue = parseResponse(rawResponse)
         if len(responseValue) > 0:
             responseQueue.put(responseValue)
+    except BrokenPipeError:
+        print("socket connection broken. Attempting to reconnect...")
+        if client_socket:
+            client_socket.close()
+            client_socket = None
+        connect_to_server()
+
     except Exception as e:
         print(f"Error in sendRequest: {e}")
+        if client_socket:
+            client_socket.close()
+            client_socket = None
+        connect_to_server()
         pass
 
+def connect_to_server():
+    global client_socket
+
+    while True:
+        try:
+            client_socket = None
+            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            print(f"attempting connection to {HOST}:{PORT} on socket {client_socket}")
+            client_socket.connect((HOST, PORT))
+            print("Successfully connected to the server.")
+            return client_socket
+        except ConnectionRefusedError:
+            print("Connection refused. Retrying in 5 seconds...")
+            if client_socket:
+                client_socket.close()
+            time.sleep(5)
+        except OSError as e:
+            if client_socket:
+                client_socket.close()
+            print(f"Error connecting: {e}. Retrying in 5 seconds...")
+            time.sleep(5)
+
+connect_to_server()
+
 def data_loop(responseQueue):
-    # TODO: figure out how to reconnect if the socket is closed at the other end
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.connect((HOST, PORT))
-        while True:
-            sendRequest(s, COMMAND_GET_MODE, responseQueue)
-            sendRequest(s, COMMAND_GET_FREQ, responseQueue)
-            sendRequest(s, COMMAND_GET_SIGNAL_STRENGTH, responseQueue)
-            time.sleep(1)
+    while True:
+        sendRequest(COMMAND_GET_MODE, responseQueue)
+        sendRequest(COMMAND_GET_FREQ, responseQueue)
+        sendRequest(COMMAND_GET_SIGNAL_STRENGTH, responseQueue)
+        time.sleep(1)
