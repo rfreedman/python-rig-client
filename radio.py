@@ -22,6 +22,31 @@ MODE_RESPONSE_PREFIX = "get_mode:|Mode: "
 
 client_socket = None
 
+def connect_to_server():
+    global client_socket
+
+    while True:
+        try:
+            client_socket = None
+            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            print(f"attempting connection to {HOST}:{PORT} on socket {client_socket}")
+            client_socket.connect((HOST, PORT))
+            print("Successfully connected to the server.")
+            return client_socket
+        except ConnectionRefusedError:
+            print("Connection refused. Retrying in 5 seconds...")
+            if client_socket:
+                client_socket.close()
+            time.sleep(5)
+        except OSError as e:
+            if client_socket:
+                client_socket.close()
+            print(f"Error connecting: {e}. Retrying in 5 seconds...")
+            time.sleep(5)
+
+connect_to_server()
+
+
 def strengthToSLevel(strengthStr):
     strength = int(strengthStr)
     # under-range (< -54dBm) - return S0
@@ -96,6 +121,7 @@ def parseResponse(response):
     print(f"Unhandled response: {response}")
     return ""
 
+# send a single command to the radio via the rigctl api, and queue the response
 def sendRequest(command, responseQueue):
     global client_socket
 
@@ -121,33 +147,10 @@ def sendRequest(command, responseQueue):
         connect_to_server()
         pass
 
-def connect_to_server():
-    global client_socket
-
-    while True:
-        try:
-            client_socket = None
-            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            print(f"attempting connection to {HOST}:{PORT} on socket {client_socket}")
-            client_socket.connect((HOST, PORT))
-            print("Successfully connected to the server.")
-            return client_socket
-        except ConnectionRefusedError:
-            print("Connection refused. Retrying in 5 seconds...")
-            if client_socket:
-                client_socket.close()
-            time.sleep(5)
-        except OSError as e:
-            if client_socket:
-                client_socket.close()
-            print(f"Error connecting: {e}. Retrying in 5 seconds...")
-            time.sleep(5)
-
-connect_to_server()
-
-def data_loop(responseQueue):
+# query the radio via the rigctl api, and put responses on the queue to be dequeued in rigclient.py (bg_thread)
+def request_loop(responseQueue):
     while True:
         sendRequest(COMMAND_GET_MODE, responseQueue)
         sendRequest(COMMAND_GET_FREQ, responseQueue)
         sendRequest(COMMAND_GET_SIGNAL_STRENGTH, responseQueue)
-        time.sleep(1)
+        time.sleep(0.5)

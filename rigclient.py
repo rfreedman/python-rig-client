@@ -68,9 +68,7 @@ def updateFreq(jsWindow, freq):
 
 
 ## the python background thread:
-## talk to hamlib to get the radio data and send the result to the webview, once every 1/2 second
-# TODO: when actually using rigCtl to talk to the radio, it will be async, so these will just be requests,
-# and the responses will be sent to the UI when they arrive. Probably use queues.
+## pull data from the response queue (queued in radio.py), and update the HTML UI
 def bg_thread(jsWindow, queue):
     while(True):  
         if not queue.empty():
@@ -93,7 +91,7 @@ def bg_thread(jsWindow, queue):
                 case _:
                     print(f"unhandled: parts[0] == {parts[0]}")
             
-        time.sleep(0.5)
+        time.sleep(0)
 
 # TODO: consider using a responsive layout and making the window resizeable
 window = webview.create_window(title="RigClient", url="rigClient.html", width=400, height=350, resizable=False);
@@ -103,7 +101,7 @@ thread = threading.Thread(target=bg_thread, args=(window, queue))
 thread.daemon = True
 thread.start()
 
-radioThread = threading.Thread(target=radio.data_loop, args=(queue, ))
+radioThread = threading.Thread(target=radio.request_loop, args=(queue, ))
 radioThread.daemon = True
 radioThread.start()
 
