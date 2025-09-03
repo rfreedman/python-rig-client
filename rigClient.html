@@ -34,12 +34,13 @@
                 font-family: roboto, monospace;
                 font-size: 1rem;
                 margin-top: -130px;
-                width: 3rem;
+                width: 100%;
+                text-align: center;
                 margin-left: auto;
                 margin-right: auto;
                 position: relative;
             }
-            .freq_mode {
+            .freq_and_mode {
                 margin-top: 1rem;
                 text-align: center;
             }
@@ -51,6 +52,14 @@
             .mode {
                 font-family: roboto, monospace;
                 font-size: 1.5rem;
+            }
+            #disconnected {
+                margin-top: 1rem;
+                text-align: center;
+                font-family: roboto, monospace;
+                font-size: 1.5rem;
+                color:red;
+                display: none;
             }
         </style>
         <script src="gauge.min.js"></script>
@@ -118,9 +127,36 @@
                 setTimeout(() => gauge.value = 0, 250);
             }
 
+            let connected = false
+            let lastConnectionStatus = "Disconnected"
+
+            const acceptConnectionStatus = (status) => {
+                if(status.toString() === lastConnectionStatus.toString()) {
+                    return; // debounce
+                }
+
+                connected = (status.toString() === 'Connected');
+                const freqAndMode = document.getElementById("freq-and-mode");
+                const disconnected = document.getElementById("disconnected");
+                if(!connected) {
+                    initSMeter();
+                    acceptSValue(status);
+                    freqAndMode.style.display = 'none';
+                    disconnected.style.display = "block";
+                } else {
+                    if(freqAndMode.style.display !== 'block') {
+                        disconnected.style.display = "none";
+                        freqAndMode.style.display = 'block';
+                    }
+                }
+                lastConnectionStatus = status.toString();
+            }
+
             // noinspection JSUnusedGlobalSymbols
             const acceptSMeter = (gaugeValue) => {
-                gauge.value = Number(gaugeValue);
+                if(connected) {
+                    gauge.value = Number(gaugeValue);
+                }
             }
 
             // noinspection JSUnusedGlobalSymbols
@@ -130,13 +166,16 @@
 
             // noinspection JSUnusedGlobalSymbols
             const acceptVFO = (freq) => {
-                console.log(`acceptVFO setting vfo innerHTML to ${freq}`)
-                vfo.innerHTML = `${freq}`;
+                if(connected) {
+                    vfo.innerHTML = `${freq}`;
+                }
             }
 
             // noinspection JSUnusedGlobalSymbols
             const acceptMode = (modeStr) => {
-                mode.innerHTML = `MHz ${modeStr}`;
+                if(connected) {
+                    mode.innerHTML = `MHz ${modeStr}`;
+                }
             }
 
             const updateClocks = () => {
@@ -153,9 +192,11 @@
             <div >UTC: <span id="utc-time" class="clock"></span></div>
         </div>
 
-        <div class="freq_mode">
+        <div id="freq-and-mode" class="freq_and_mode">
             <span id="vfo" class="seven-segment"></span>&nbsp;&nbsp;<span id="mode" class="mode"></span>
         </div>
+
+        <div id="disconnected">Disconnected</div>
 
         <div class="s-meter-container">
             <canvas id="meterCanvas" style="width:100%; height:100%;"></canvas>

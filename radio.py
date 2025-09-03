@@ -1,8 +1,9 @@
 # radio-interface.py
 # receive commands via inbound queue, send to the radio, get response, and put response on outbound queue
-
+import queue
 import socket
 import time
+from connection_status import ConnectionStatus
 
 HOST = None  # The server's hostname or IP address
 PORT = None           # The port used by the server
@@ -21,15 +22,22 @@ MODE_RESPONSE_PREFIX = "get_mode:|Mode: "
 
 client_socket: socket.socket
 
+response_queue: queue.Queue
+
+def set_connection_status(status: ConnectionStatus):
+    response_queue.put(f"connection_status:{status.value}")
+
 def connect_to_server():
     global client_socket
 
     while True:
         try:
+            set_connection_status(ConnectionStatus.CONNECTING)
             client_socket = None
             client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             print(f"attempting connection to {HOST}:{PORT}")
             client_socket.connect((HOST, PORT))
+            set_connection_status(ConnectionStatus.CONNECTED)
             print("Successfully connected to the server.")
             return client_socket
         except ConnectionRefusedError:
@@ -128,6 +136,7 @@ def send_request(command, response_queue):
         if len(response_value) > 0:
             response_queue.put(response_value)
     except BrokenPipeError:
+        set_connection_status(ConnectionStatus.DISCONNECTED)
         print("socket connection broken. Attempting to reconnect...")
         if client_socket:
             client_socket.close()
@@ -135,6 +144,7 @@ def send_request(command, response_queue):
         connect_to_server()
 
     except Exception as e:
+        set_connection_status(ConnectionStatus.DISCONNECTED)
         print(f"Error in sendRequest: {e}")
         if client_socket:
             client_socket.close()
@@ -143,12 +153,17 @@ def send_request(command, response_queue):
         pass
 
 # query the radio via the rigctl api, and put responses on the queue to be dequeued in rigclient.py (bg_thread) # noqa
-def request_loop(host, port, response_queue):
+def request_loop(host, port, the_response_queue):
+    global response_queue
+
     global HOST
     global PORT
 
+    response_queue = the_response_queue
+
     HOST = host
     PORT = int(port)
+
     connect_to_server()
 
     while True:

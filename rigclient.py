@@ -51,7 +51,10 @@ def format_freq(freq_hz):
 
     return formatted
 
-    return formatted
+
+def update_connection_status(js_window, status:str):
+    cmd = f'acceptConnectionStatus("{status}")'
+    js_window.run_js(cmd)
 
 def update_mode(js_window, mode):
      cmd = f'acceptMode("{mode}");'
@@ -82,6 +85,9 @@ def bg_thread(js_window, response_queue):
             value = parts[1]
 
             match command:
+                case "connection_status":
+                    update_connection_status(js_window, value)
+
                 case "freq":
                     update_freq(js_window, value)
 
@@ -101,6 +107,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="rigclient - a dashboard for your radio using hamlib rigctl(d)")
     parser.add_argument("--host", default="localhost", help="Specify the host computer ip address or name")
     parser.add_argument("--port", default="4532", help="Specify the host computer port")
+    parser.add_argument("--debug", action="store_true", help="Enable debugging mode.")
     args = parser.parse_args()
 
     window = webview.create_window(title="RigClient", url="rigClient.html", width=400, height=350, resizable=True)
@@ -114,5 +121,5 @@ if __name__ == "__main__":
     radioThread.daemon = True
     radioThread.start()
 
-    webview.start(debug=False)
+    webview.start(debug=args.debug)
 
