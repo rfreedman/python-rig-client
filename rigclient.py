@@ -1,4 +1,4 @@
-#! env python
+#! ./venv/bin/python
 
 import argparse
 import threading
