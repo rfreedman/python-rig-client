@@ -110,7 +110,7 @@ if __name__ == "__main__":
     parser.add_argument("--debug", action="store_true", help="Enable debugging mode.")
     args = parser.parse_args()
 
-    window = webview.create_window(title="RigClient", url="rigClient.html", width=400, height=350, resizable=True)
+    window = webview.create_window(title="RigClient", url="rigClient.html", width=400, height=350, resizable=False)
 
     queue = Queue()
     thread = threading.Thread(target=bg_thread, args=(window, queue))
