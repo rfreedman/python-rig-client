@@ -43,9 +43,6 @@ def connect_to_server():
             print(f"Error connecting: {e}. Retrying in 5 seconds...")
             time.sleep(5)
 
-# connect_to_server()
-
-
 def strength_to_s_level(strength_str):
     strength = int(strength_str)
     # under-range (< -54dBm) - return S0

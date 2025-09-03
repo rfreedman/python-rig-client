@@ -98,9 +98,7 @@ if __name__ == "__main__":
     parser.add_argument("--host", default="localhost", help="Specify the host computer ip address or name")
     parser.add_argument("--port", default="4532", help="Specify the host computer port")
     args = parser.parse_args()
-    # print(f"host = {args.host}, port = {args.port}")
 
-    # TODO: consider using a responsive layout and making the window resizeable
     window = webview.create_window(title="RigClient", url="rigClient.html", width=400, height=350, resizable=True)
 
     queue = Queue()
