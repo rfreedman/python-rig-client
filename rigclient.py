@@ -1,4 +1,4 @@
-#! env python3
+#! env python
 
 import argparse
 import threading
