@@ -9,6 +9,7 @@ import random
 import re  
 import radio
 from queue import Queue
+import argparse
 
 def gaugeValueToSLabel(gaugeValue):
     floatValue = float(gaugeValue)
@@ -93,16 +94,25 @@ def bg_thread(jsWindow, queue):
             
         time.sleep(0)
 
-# TODO: consider using a responsive layout and making the window resizeable
-window = webview.create_window(title="RigClient", url="rigClient.html", width=400, height=350, resizable=False);
+if __name__ == "__main__":
+  
+    parser = argparse.ArgumentParser(description="rigclient - a dashboard for your radio using hamlib rigctl(d)")
+    parser.add_argument("--host", default="localhost", help="Specify the host computer ip address or name")
+    parser.add_argument("--port", default="4532", help="Specify the host computer port")
+    args = parser.parse_args()
+    # print(f"host = {args.host}, port = {args.port}")
 
-queue = Queue()
-thread = threading.Thread(target=bg_thread, args=(window, queue))
-thread.daemon = True
-thread.start()
+    # TODO: consider using a responsive layout and making the window resizeable
+    window = webview.create_window(title="RigClient", url="rigClient.html", width=400, height=350, resizable=False);
 
-radioThread = threading.Thread(target=radio.request_loop, args=(queue, ))
-radioThread.daemon = True
-radioThread.start()
+    queue = Queue()
+    thread = threading.Thread(target=bg_thread, args=(window, queue))
+    thread.daemon = True
+    thread.start()
 
-webview.start(debug=False)
+    radioThread = threading.Thread(target=radio.request_loop, args=(host:=args.host, port:=args.port, responseQueue:=queue))
+    radioThread.daemon = True
+    radioThread.start()
+
+    webview.start(debug=False)
+

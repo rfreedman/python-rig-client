@@ -5,8 +5,8 @@ import socket
 import time
 from datetime import datetime
 
-HOST = 'houseserver'  # The server's hostname or IP address
-PORT = 4532           # The port used by the server
+HOST = None  # The server's hostname or IP address
+PORT = None           # The port used by the server
 
 COMMAND_STATUS_PREFIX = "|RPRT "
 COMMAND_SUCCESS = "|RPRT 0"
@@ -29,7 +29,7 @@ def connect_to_server():
         try:
             client_socket = None
             client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            print(f"attempting connection to {HOST}:{PORT} on socket {client_socket}")
+            print(f"attempting connection to {HOST}:{PORT}")
             client_socket.connect((HOST, PORT))
             print("Successfully connected to the server.")
             return client_socket
@@ -44,7 +44,7 @@ def connect_to_server():
             print(f"Error connecting: {e}. Retrying in 5 seconds...")
             time.sleep(5)
 
-connect_to_server()
+# connect_to_server()
 
 
 def strengthToSLevel(strengthStr):
@@ -148,7 +148,14 @@ def sendRequest(command, responseQueue):
         pass
 
 # query the radio via the rigctl api, and put responses on the queue to be dequeued in rigclient.py (bg_thread)
-def request_loop(responseQueue):
+def request_loop(host, port, responseQueue):
+    global HOST
+    global PORT
+
+    HOST = host
+    PORT = int(port)
+    connect_to_server()
+
     while True:
         sendRequest(COMMAND_GET_MODE, responseQueue)
         sendRequest(COMMAND_GET_FREQ, responseQueue)
