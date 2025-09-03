@@ -1,4 +1,4 @@
-<html>
+<html lang="en-US">
     <head>
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
@@ -24,17 +24,12 @@
                 margin-left: auto;
                 margin-right: auto;
             }
-
             #meterCanvas {
                 width: 300px;
                 height: 300px; 
-                margin-top: 0px;
+                margin-top: 0;
             }
-
-            radial-gauge {
-                margin-top: 1rem;
-            }
-            #data-smeter {
+            #data-s-meter {
                 z-index: 100;
                 font-family: roboto, monospace;
                 font-size: 1rem;
@@ -60,12 +55,11 @@
         </style>
         <script src="gauge.min.js"></script>
         <script lang="javascript">
-            const signalStrength = 0;
-            var gauge = undefined;
-            var local_clock;
-            var utc_clock;
-            var vfo;
-            var mode;
+            let gauge = undefined;
+            let local_clock;
+            let utc_clock;
+            let vfo;
+            let mode;
 
             const gaugeOptions /*: CanvasGauges.RadialGaugeOptions */ = {
                 units: false,
@@ -116,6 +110,7 @@
             };
 
             const initSMeter = () => {
+                // noinspection JSUnresolvedReference
                 gauge = new RadialGauge(gaugeOptions);
 
                 // gauge doesn't show unless a value > 0 is set
@@ -123,31 +118,36 @@
                 setTimeout(() => gauge.value = 0, 250);
             }
 
+            // noinspection JSUnusedGlobalSymbols
             const acceptSMeter = (gaugeValue) => {
                 gauge.value = Number(gaugeValue);
             }
 
+            // noinspection JSUnusedGlobalSymbols
             const acceptSValue = (sValue) => {
-                document.getElementById("data-smeter").innerHTML = sValue;
+                document.getElementById("data-s-meter").innerHTML = sValue;
             }
 
+            // noinspection JSUnusedGlobalSymbols
             const acceptVFO = (freq) => {
                 console.log(`acceptVFO setting vfo innerHTML to ${freq}`)
                 vfo.innerHTML = `${freq}`;
             }
 
+            // noinspection JSUnusedGlobalSymbols
             const acceptMode = (modeStr) => {
                 mode.innerHTML = `MHz ${modeStr}`;
             }
 
             const updateClocks = () => {
                 const now = new Date(); 
-                local_clock.innerHTML = now.toTimeString().substr(0,8);
-                utc_clock.innerHTML = now.toUTCString().substr(17,8);
+                local_clock.innerHTML = now.toTimeString().substring(0,8);
+                utc_clock.innerHTML = now.toUTCString().substring(17,8);
             }
         </script>
+        <title>rigClient</title>
     </head>
-    <body width="100%" height="100%">  
+    <body>
         <div id="clocks">
             <div>Local: <span id="local-time" class="clock"></span></div>
             <div >UTC: <span id="utc-time" class="clock"></span></div>
@@ -157,14 +157,14 @@
             <span id="vfo" class="seven-segment"></span>&nbsp;&nbsp;<span id="mode" class="mode"></span>
         </div>
 
-        <div class="s-meter-container" #meterContainer>
+        <div class="s-meter-container">
             <canvas id="meterCanvas" style="width:100%; height:100%;"></canvas>
         </div>
 
-        <div id="data-smeter" width="100%" height="1rem"></div>
+        <div id="data-s-meter"></div>
         <script>
+           // noinspection SpellCheckingInspection
            window.addEventListener('pywebviewready', function() {
-                console.log("pywebbview is ready");
                 initSMeter();
            });
            local_clock = document.getElementById('local-time');

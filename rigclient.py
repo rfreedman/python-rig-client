@@ -1,44 +1,43 @@
 #! env python3
 
-import webview
-import asyncio
+import argparse
 import threading
 import time
-from datetime import datetime
-import random
-import re  
-import radio
 from queue import Queue
-import argparse
 
-def gaugeValueToSLabel(gaugeValue):
-    floatValue = float(gaugeValue)
+import webview
+
+import radio
+
+
+def gauge_value_to_s_label(gauge_value):
+    float_value = float(gauge_value)
 
     # values <= 9 are S-meter values, used directly
-    if floatValue <= 9:
-        return f"S{floatValue}"
+    if float_value <= 9:
+        return f"S{float_value}"
     
     # values > 9 are "S9 + n dBm", where n == 1 is 10dBm, 2 is 20dBm, etc.,
     # so subtract 9 before using the value, and then multiply by 10
-    return f"S9+{round(((floatValue - 9) * 10))}" 
+    return f"S9+{round(((float_value - 9) * 10))}"
 
-def formatFreq(freqHz):
-    freq_len = len(freqHz) # 7 or 8 depending on band, e.g. length for 7MHz is 7, length for 14MHz is 8
+def format_freq(freq_hz):
+    freq_len = len(freq_hz) # 7 or 8 depending on band, e.g. length for 7MHz is 7, length for 14MHz is 8
 
     beginning = ""
 
     # first 1 or 2 digits, depending on band
     match freq_len:
         case 7:
-            beginning = freqHz[0:1] 
+            beginning = freq_hz[0:1]
         case 8:
-            beginning = freqHz[0:2]
+            beginning = freq_hz[0:2]
 
     # next 3 digits
-    middle = freqHz[-6:-3]
+    middle = freq_hz[-6:-3]
 
     # last 3 digits, but trim trailing zeros 
-    end = freqHz[-3:]
+    end = freq_hz[-3:]
     while end[-1:] == '0':
         end = end[:-1]
 
@@ -50,47 +49,46 @@ def formatFreq(freqHz):
 
     return formatted
 
-def updateMode(jsWindow, mode): 
+def update_mode(js_window, mode):
      cmd = f'acceptMode("{mode}");'
-     jsWindow.run_js(cmd) 
+     js_window.run_js(cmd)
      
-def updateSMeter(jsWindow, gaugeValue):
-    cmd = f'acceptSMeter("{gaugeValue}");'
-    jsWindow.run_js(cmd) 
+def update_s_meter(js_window, gauge_value):
+    cmd = f'acceptSMeter("{gauge_value}");'
+    js_window.run_js(cmd)
 
-    sLabel = gaugeValueToSLabel(gaugeValue)
-    cmd = f'acceptSValue("{sLabel}");' 
-    jsWindow.run_js(cmd) 
+    s_label = gauge_value_to_s_label(gauge_value)
+    cmd = f'acceptSValue("{s_label}");'
+    js_window.run_js(cmd)
 
-def updateFreq(jsWindow, freq):
-    formatted = formatFreq(freq)
+def update_freq(js_window, freq):
+    formatted = format_freq(freq)
     cmd = f'acceptVFO("{formatted}");'
-    jsWindow.run_js(cmd) 
+    js_window.run_js(cmd)
 
 
 ## the python background thread:
 ## pull data from the response queue (queued in radio.py), and update the HTML UI
-def bg_thread(jsWindow, queue):
-    while(True):  
-        if not queue.empty():
-            response = queue.get()
+def bg_thread(js_window, response_queue):
+    while True:
+        if not response_queue.empty():
+            response = response_queue.get()
             parts = response.split(":")
             command = parts[0]
             value = parts[1]
 
             match command:
                 case "freq":
-                    updateFreq(jsWindow, parts[1])
+                    update_freq(js_window, value)
 
                 case "signal_strength":
-                    slevel = parts[1]
-                    updateSMeter(jsWindow, slevel)
+                    update_s_meter(js_window, value)
 
                 case "mode":
-                    updateMode(jsWindow, parts[1])
+                    update_mode(js_window, value)
 
                 case _:
-                    print(f"unhandled: parts[0] == {parts[0]}")
+                    print(f"unhandled: command == {command}")
             
         time.sleep(0)
 
@@ -103,7 +101,7 @@ if __name__ == "__main__":
     # print(f"host = {args.host}, port = {args.port}")
 
     # TODO: consider using a responsive layout and making the window resizeable
-    window = webview.create_window(title="RigClient", url="rigClient.html", width=400, height=350, resizable=False);
+    window = webview.create_window(title="RigClient", url="rigClient.html", width=400, height=350, resizable=True)
 
     queue = Queue()
     thread = threading.Thread(target=bg_thread, args=(window, queue))

@@ -3,13 +3,12 @@
 
 import socket
 import time
-from datetime import datetime
 
 HOST = None  # The server's hostname or IP address
 PORT = None           # The port used by the server
 
-COMMAND_STATUS_PREFIX = "|RPRT "
-COMMAND_SUCCESS = "|RPRT 0"
+COMMAND_STATUS_PREFIX = "|RPRT " # noqa
+COMMAND_SUCCESS = "|RPRT 0"      # noqa
 
 COMMAND_GET_FREQ = "|\\get_freq\n"
 FREQ_RESPONSE_PREFIX = "get_freq:|Frequency: "
@@ -20,7 +19,7 @@ SIGNAL_STRENGTH_RESPONSE_PREFIX = "get_level: STRENGTH|"
 COMMAND_GET_MODE = "|\\get_mode\n"
 MODE_RESPONSE_PREFIX = "get_mode:|Mode: "
 
-client_socket = None
+client_socket: socket.socket
 
 def connect_to_server():
     global client_socket
@@ -47,16 +46,16 @@ def connect_to_server():
 # connect_to_server()
 
 
-def strengthToSLevel(strengthStr):
-    strength = int(strengthStr)
+def strength_to_s_level(strength_str):
+    strength = int(strength_str)
     # under-range (< -54dBm) - return S0
     if strength < -54:
-      print(f'strength under-range: strength {strength} is < -54, returning 0 (s0)');
-      return 0;
+      print(f'strength under-range: strength {strength} is < -54, returning 0 (s0)')
+      return 0
 
     # over-range: > 60dBm, return S9+60
     if strength > 60:
-        print(f'signal strength over-range: strength {strength} is > 60dBm, returning 15 (s9+60)');
+        print(f'signal strength over-range: strength {strength} is > 60dBm, returning 15 (s9+60)')
         return 15 # don't go beyond full scale at S9+60    
 
     # S0 (-54dBm) to S9 (0dBm) - scaled from 0 to 9 for the gauge
@@ -64,31 +63,30 @@ def strengthToSLevel(strengthStr):
       return (strength + 54) / 6
 
     # S9+ : 1dBm (S9+1), up to 60dBm (S9+60), scaled to 10 to 15 for the gauge
-    if strength > 0:
-      return (strength / 10) + 9 
+    return (strength / 10) + 9
 
-def parseResponseValue(str, prefix, suffix):
+def parse_response_value(response_str, prefix, suffix):
     # trim off the prefix and the suffix
-    val = str[len(prefix):]
+    val = response_str[len(prefix):]
     val = val[:-(len(suffix) + 1)]
     return val    
 
 def response_code_from_status(status):
     return status[len(COMMAND_STATUS_PREFIX):]
 
-def parseResponse(response):
+def parse_response(response):
     # handle socket disconnect
     if response == "":
         return ""
 
     response_status = response[-(len(COMMAND_SUCCESS)+1):]
-    if(not response_status[-1].isdigit()): # trim trailing carriage return and or linefeed
+    if not response_status[-1].isdigit(): # trim trailing carriage return and or linefeed
         response_status = response_status[:-1]
 
     if response.startswith(MODE_RESPONSE_PREFIX):
         if response_status == COMMAND_SUCCESS:
-            # e.g. response == "get_mode:|Mode: USB|Passband: 2400|RPRT 0"
-            val = parseResponseValue(response, MODE_RESPONSE_PREFIX, COMMAND_SUCCESS)
+            # e.g. response == "get_mode:|Mode: USB|Passband: 2400|RPRT 0" # noqa
+            val = parse_response_value(response, MODE_RESPONSE_PREFIX, COMMAND_SUCCESS)
             
             # val includes passband info, e.g. "USB|Passband: 2400", so pick off just the mode
             parts = val.split('|')
@@ -98,8 +96,8 @@ def parseResponse(response):
 
     if response.startswith(FREQ_RESPONSE_PREFIX):
         if response_status == COMMAND_SUCCESS:
-            # e.g. response == "get_freq:|Frequency: 14074100|RPRT 0"
-            val = parseResponseValue(response, FREQ_RESPONSE_PREFIX, COMMAND_SUCCESS)
+            # e.g. response == "get_freq:|Frequency: 14074100|RPRT 0" # noqa
+            val = parse_response_value(response, FREQ_RESPONSE_PREFIX, COMMAND_SUCCESS)
             return f"freq:{val}"
         else:
             response_code = response_code_from_status(response_status)
@@ -109,10 +107,10 @@ def parseResponse(response):
     
     if response.startswith(SIGNAL_STRENGTH_RESPONSE_PREFIX):
         if response_status == COMMAND_SUCCESS:
-            # e.g. response == "get_level: STRENGTH|-29|RPRT 0"
-            dBm = parseResponseValue(response, SIGNAL_STRENGTH_RESPONSE_PREFIX, COMMAND_SUCCESS)
-            sLevel = strengthToSLevel(dBm)
-            return f"signal_strength:{round(sLevel,1)}" # sLevel is 0-15 for the gauge
+            # e.g. response == "get_level: STRENGTH|-29|RPRT 0" # noqa
+            dbm = parse_response_value(response, SIGNAL_STRENGTH_RESPONSE_PREFIX, COMMAND_SUCCESS)
+            s_level = strength_to_s_level(dbm)
+            return f"signal_strength:{round(s_level,1)}" # s_level is 0-15 for the gauge
         else:
             response_code = response_code_from_status(response_status)
             print(f"bad get_signal_strength command response code: {response_code}")
@@ -121,17 +119,17 @@ def parseResponse(response):
     print(f"Unhandled response: {response}")
     return ""
 
-# send a single command to the radio via the rigctl api, and queue the response
-def sendRequest(command, responseQueue):
+# send a single command to the radio via the rigctl api, and queue the response # noqa
+def send_request(command, response_queue):
     global client_socket
 
     try:
         client_socket.sendall(command.encode())
         data = client_socket.recv(1024)
-        rawResponse = data.decode()
-        responseValue = parseResponse(rawResponse)
-        if len(responseValue) > 0:
-            responseQueue.put(responseValue)
+        raw_response = data.decode()
+        response_value = parse_response(raw_response)
+        if len(response_value) > 0:
+            response_queue.put(response_value)
     except BrokenPipeError:
         print("socket connection broken. Attempting to reconnect...")
         if client_socket:
@@ -147,8 +145,8 @@ def sendRequest(command, responseQueue):
         connect_to_server()
         pass
 
-# query the radio via the rigctl api, and put responses on the queue to be dequeued in rigclient.py (bg_thread)
-def request_loop(host, port, responseQueue):
+# query the radio via the rigctl api, and put responses on the queue to be dequeued in rigclient.py (bg_thread) # noqa
+def request_loop(host, port, response_queue):
     global HOST
     global PORT
 
@@ -157,7 +155,7 @@ def request_loop(host, port, responseQueue):
     connect_to_server()
 
     while True:
-        sendRequest(COMMAND_GET_MODE, responseQueue)
-        sendRequest(COMMAND_GET_FREQ, responseQueue)
-        sendRequest(COMMAND_GET_SIGNAL_STRENGTH, responseQueue)
+        send_request(COMMAND_GET_MODE, response_queue)
+        send_request(COMMAND_GET_FREQ, response_queue)
+        send_request(COMMAND_GET_SIGNAL_STRENGTH, response_queue)
         time.sleep(0.5)
