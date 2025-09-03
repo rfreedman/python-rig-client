@@ -12,3 +12,12 @@ HamLib/rigctl(d) presents a text-command interface via tcp/ip, so this program c
 that is running rigctl(d) and is connected to the radio to be monitored.
 
 <div style="text-align: center;"><img src="rig-client.png" style="width:50%" alt="rig-client user interface"></div>
+
+## Running
+<ul>
+<li>source ./venv activate</li>
+<li>pip install -r requirements.txt // first time only</li>
+<li>./rigclient.py // if on same computer as rigctl/rigctld and rigctl/rigctld is on default port</li>
+<li>./rigclient.py --host <hostname> --port <port> // if not on same host or rigctrl(d) is on a non-default port
+</ul>
+
