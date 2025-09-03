@@ -46,6 +46,10 @@ def format_freq(freq_hz):
     # only add the remaining digits if not blank
     if len(end) > 0:
         formatted = f"{formatted}.{end}"
+    else:
+        formatted = f"{formatted}.0"
+
+    return formatted
 
     return formatted
 
