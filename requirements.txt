@@ -1,2 +1,3 @@
+QtPy==2.4.3
 pywebview==6.0
 
