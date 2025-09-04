@@ -77,6 +77,7 @@ def update_freq(js_window, freq):
 ## the python background thread:
 ## pull data from the response queue (queued in radio.py), and update the HTML UI
 def bg_thread(js_window, response_queue):
+
     while True:
         if not response_queue.empty():
             response = response_queue.get()
@@ -102,15 +103,49 @@ def bg_thread(js_window, response_queue):
             
         time.sleep(0)
 
+def get_window_position_x_y(position):
+    screen_width = webview.screens[0].width
+    screen_height = webview.screens[0].height
+
+    x = None
+    y = None
+
+    match position:
+        case 'tl':
+            x = 0
+            y = 0
+
+        case 'tr':
+            x = screen_width - 400
+            y = 0
+
+        case 'bl':
+            x = 0
+            y = screen_height - 350
+
+        case 'br':
+            x = screen_width - 400
+            y = screen_height - 350
+    return x,y
+
+
 if __name__ == "__main__":
   
     parser = argparse.ArgumentParser(description="rigclient - a dashboard for your radio using hamlib rigctl(d)")
     parser.add_argument("--host", default="localhost", help="Specify the host computer ip address or name")
     parser.add_argument("--port", default="4532", help="Specify the host computer port")
     parser.add_argument("--debug", action="store_true", help="Enable debugging mode.")
+    parser.add_argument(
+        '--position', choices=['center', 'tl', 'tr', 'bl', 'br'],
+        help="Specify the position of the window: 'center', 'tl' (top-left), 'tr' (top-right), 'bl' (bottom-left), or 'br' (bottom-right), defaults to 'center'"
+    )
     args = parser.parse_args()
 
-    window = webview.create_window(title="RigClient", url="rigClient.html", width=400, height=350, resizable=False)
+    screen_x, screen_y = None, None
+    if args.position is not None and args.position != 'center':
+        screen_x, screen_y = get_window_position_x_y(args.position)
+
+    window = webview.create_window(title="RigClient", url="rigClient.html", x=screen_x, y=screen_y, width=400, height=350, resizable=False)
 
     queue = Queue()
     thread = threading.Thread(target=bg_thread, args=(window, queue))
