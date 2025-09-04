@@ -145,7 +145,7 @@ if __name__ == "__main__":
     if args.position is not None and args.position != 'center':
         screen_x, screen_y = get_window_position_x_y(args.position)
 
-    window = webview.create_window(title="RigClient", url="rigClient.html", x=screen_x, y=screen_y, width=400, height=350, resizable=False)
+    window = webview.create_window(title="RigClient",  url="rigClient.html", x=screen_x, y=screen_y, width=400, height=350, resizable=False)
 
     queue = Queue()
     thread = threading.Thread(target=bg_thread, args=(window, queue))
@@ -156,5 +156,5 @@ if __name__ == "__main__":
     radioThread.daemon = True
     radioThread.start()
 
-    webview.start(debug=args.debug)
+    webview.start(debug=args.debug, icon="rig-client.png")
 
