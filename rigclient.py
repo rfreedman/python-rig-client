@@ -156,5 +156,5 @@ if __name__ == "__main__":
     radioThread.daemon = True
     radioThread.start()
 
-    webview.start(debug=args.debug, icon="icon.png")
+    webview.start(debug=args.debug, icon="icon-white.png")
 
