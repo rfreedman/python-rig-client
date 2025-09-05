@@ -1,0 +1,173 @@
+name: Build native executables (GraalPy / GraalVM Community)
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ "v*", "V*" ]
+  pull_request:
+
+env:
+  APP_NAME: myapp
+  ENTRYPOINT: app.py
+  VERSION: ${{ github.ref_name }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}-${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x64
+          - os: ubuntu-latest
+            arch: x64
+          # Linux ARM64 (Raspberry Pi)
+          - os: ubuntu-24.04-arm64
+            arch: arm64
+          # Windows x64
+          - os: windows-latest
+            arch: x64
+          # macOS Intel
+          - os: macos-13
+            arch: x64
+          # macOS ARM (Apple Silicon)
+          - os: macos-latest
+            arch: arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up GraalVM Community
+        uses: graalvm/setup-graalvm@v1
+        with:
+          distribution: graalvm-community
+          java-version: '21'
+          components: 'native-image,python'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          native-image-job-reports: 'true'
+
+      - name: Confirm versions
+        run: |
+          java -version
+          native-image --version
+          graalpy --version
+
+      - name: Set up Python virtual env (GraalPy)
+        run: |
+          graalpy -m venv .venv
+          source .venv/bin/activate || source .venv/Scripts/activate
+          python -m pip install --upgrade pip wheel
+          if [ -f requirements.txt ]; then
+            python -m pip install -r requirements.txt
+          fi
+
+      - name: Build native executable
+        run: |
+          source .venv/bin/activate || source .venv/Scripts/activate
+          EXT=""
+          if [[ "$RUNNER_OS" == "Windows" ]]; then EXT=".exe"; fi
+          mkdir -p dist
+          graalpy -m standalone native \
+            --module "${{ env.ENTRYPOINT }}" \
+            --output "dist/${{ env.APP_NAME }}${EXT}" \
+            --venv ".venv"
+          ls -lah dist || dir dist
+
+      - name: Package .deb (Debian/Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ruby ruby-dev build-essential
+          sudo gem install --no-document fpm
+          mkdir -p pkg
+          fpm -s dir -t deb \
+            -n "${APP_NAME}" \
+            -v "${VERSION}" \
+            --prefix /usr/local/bin \
+            "dist/${APP_NAME}"*
+          mv *.deb pkg/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            dist/
+            pkg/
+
+  build-fedora:
+    name: Build Fedora RPM (x64)
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - name: Install dependencies
+        run: |
+          dnf install -y git ruby ruby-devel gcc make rpm-build which findutils
+          gem install --no-document fpm
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up GraalVM Community
+        uses: graalvm/setup-graalvm@v1
+        with:
+          distribution: graalvm-community
+          java-version: '21'
+          components: 'native-image,python'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Confirm versions
+        run: |
+          java -version
+          native-image --version
+          graalpy --version
+      - name: Build binary
+        run: |
+          graalpy -m venv .venv
+          source .venv/bin/activate
+          python -m pip install --upgrade pip wheel
+          if [ -f requirements.txt ]; then
+            python -m pip install -r requirements.txt
+          fi
+          mkdir -p dist
+          graalpy -m standalone native \
+            --module "${ENTRYPOINT}" \
+            --output "dist/${APP_NAME}" \
+            --venv ".venv"
+      - name: Package .rpm
+        run: |
+          mkdir -p pkg
+          fpm -s dir -t rpm \
+            -n "${APP_NAME}" \
+            -v "${VERSION}" \
+            --prefix /usr/local/bin \
+            "dist/${APP_NAME}"
+          mv *.rpm pkg/
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-fedora-x64
+          path: |
+            dist/
+            pkg/
+
+  release:
+    name: Release
+    needs: [build, build-fedora]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Create GitHub Release and attach binaries
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
