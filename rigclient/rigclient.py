@@ -129,8 +129,7 @@ def get_window_position_x_y(position):
     return x,y
 
 
-if __name__ == "__main__":
-  
+def main():
     parser = argparse.ArgumentParser(description="rigclient - a dashboard for your radio using hamlib rigctl(d)")
     parser.add_argument("--host", default="localhost", help="Specify the host computer ip address or name")
     parser.add_argument("--port", default="4532", help="Specify the host computer port")
@@ -158,3 +157,6 @@ if __name__ == "__main__":
 
     webview.start(debug=args.debug, icon="icon.png")
 
+
+if __name__ == "__main__":
+    main()

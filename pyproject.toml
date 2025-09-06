@@ -3,16 +3,23 @@ requires = ["briefcase==0.3.25", "setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.briefcase]
-app_name = "rigclient"
-formal_name = "RigClient"
+# Global configuration
+app_name = "rigclient"             # Short name, no spaces
+formal_name = "Rig Client"         # Full display name
 version = "1.0.0"
-description = "A sample Python app packaged with BeeWare Briefcase."
-author = "Rich Freedman, N2EHL"
-author_email = "n2ehl@arrl.net"
-url = "rfreedman/python-rig-client"
-entry_point = "rigclient:main"
+description = "A Python app for rig control packaged with BeeWare Briefcase."
+author = "Your Name"
+author_email = "you@example.com"
+url = "https://github.com/rfreedman/rigclient"
+entry_point = "rigclient:main"     # Points to rigclient/rigclient.py -> main()
 platforms = ["macOS", "Windows", "Linux"]
 
-[tool.briefcase.app.myapp]
-module = "rigclient"
+# Required for Briefcase 0.3.x
+bundle = "radio.n2ehl.rigclient"   # Reverse domain identifier
+project_name = "rigclient"         # Used for the native project folder
+
+[tool.briefcase.app.rigclient]
+module = "rigclient"               # Points to rigclient/rigclient.py
+requires = ["requests"]            # Add any Python dependencies your app needs
+
 requires = ["QtPy==2.4.3, pywebview==6.0"]  # Add your Python dependencies here

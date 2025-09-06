@@ -47,14 +47,14 @@ jobs:
 
       - name: Zip Windows build
         run: |
-          $zipName="myapp-windows-${{ github.run_number }}.zip"
+          $zipName="rigclient-windows-${{ github.run_number }}.zip"
           Compress-Archive -Path ./dist/* -DestinationPath $zipName
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: myapp-windows-${{ github.run_number }}
-          path: myapp-windows-${{ github.run_number }}.zip
+          name: rigclient-windows-${{ github.run_number }}
+          path: rigclient-windows-${{ github.run_number }}.zip
 
   build-macos:
     name: Build macOS App
@@ -94,14 +94,14 @@ jobs:
 
       - name: Zip macOS build
         run: |
-          zipName="myapp-macos-${{ github.run_number }}.zip"
+          zipName="rigclient-macos-${{ github.run_number }}.zip"
           zip -r "$zipName" ./dist/*
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
-          name: myapp-macos-${{ github.run_number }}
-          path: myapp-macos-${{ github.run_number }}.zip
+          name: rigclient-macos-${{ github.run_number }}
+          path: rigclient-macos-${{ github.run_number }}.zip
 
   build-linux:
     name: Build Linux Executable
@@ -141,11 +141,11 @@ jobs:
 
       - name: Zip Linux build
         run: |
-          zipName="myapp-linux-${{ github.run_number }}.zip"
+          zipName="rigclient-linux-${{ github.run_number }}.zip"
           zip -r "$zipName" ./dist/*
 
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
         with:
-          name: myapp-linux-${{ github.run_number }}
-          path: myapp-linux-${{ github.run_number }}.zip
+          name: rigclient-linux-${{ github.run_number }}
+          path: rigclient-linux-${{ github.run_number }}.zip
