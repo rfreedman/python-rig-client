@@ -1,0 +1,139 @@
+name: Build Native Executable
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-windows:
+    name: Build Windows Executable
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install briefcase==0.5.13
+          pip install -r requirements.txt
+
+      - name: Build Windows Executable
+        run: |
+          briefcase create
+          briefcase build
+          briefcase package
+
+      - name: Zip Windows build
+        run: |
+          $zipName="myapp-windows-${{ github.run_number }}.zip"
+          Compress-Archive -Path ./dist/* -DestinationPath $zipName
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: myapp-windows-${{ github.run_number }}
+          path: myapp-windows-${{ github.run_number }}.zip
+
+  build-macos:
+    name: Build macOS App
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/Library/Caches/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install briefcase==0.5.13
+          pip install -r requirements.txt
+
+      - name: Build macOS App
+        run: |
+          briefcase create
+          briefcase build
+          briefcase package
+
+      - name: Zip macOS build
+        run: |
+          zipName="myapp-macos-${{ github.run_number }}.zip"
+          zip -r "$zipName" ./dist/*
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: myapp-macos-${{ github.run_number }}
+          path: myapp-macos-${{ github.run_number }}.zip
+
+  build-linux:
+    name: Build Linux Executable
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install briefcase==0.5.13
+          pip install -r requirements.txt
+
+      - name: Build Linux Executable
+        run: |
+          briefcase create
+          briefcase build
+          briefcase package
+
+      - name: Zip Linux build
+        run: |
+          zipName="myapp-linux-${{ github.run_number }}.zip"
+          zip -r "$zipName" ./dist/*
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: myapp-linux-${{ github.run_number }}
+          path: myapp-linux-${{ github.run_number }}.zip
