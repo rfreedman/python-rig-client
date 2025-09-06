@@ -27,23 +27,23 @@ jobs:
           # Linux x64
           - os: ubuntu-latest
             arch: x64
-            graalpy-asset: graalpy-${{ env.GRAALPY_VERSION }}-linux-amd64.tar.gz
+            graalpy-asset: linux-amd64.tar.gz
           # Linux ARM64 (Raspberry Pi)
           - os: ubuntu-24.04-arm64
             arch: arm64
-            graalpy-asset: graalpy-${{ env.GRAALPY_VERSION }}-linux-aarch64.tar.gz
+            graalpy-asset: linux-aarch64.tar.gz
           # Windows x64
           - os: windows-latest
             arch: x64
-            graalpy-asset: graalpy-${{ env.GRAALPY_VERSION }}-windows-amd64.zip
+            graalpy-asset: windows-amd64.zip
           # macOS Intel
           - os: macos-13
             arch: x64
-            graalpy-asset: graalpy-${{ env.GRAALPY_VERSION }}-darwin-amd64.tar.gz
+            graalpy-asset: darwin-amd64.tar.gz
           # macOS ARM (Apple Silicon)
           - os: macos-latest
             arch: arm64
-            graalpy-asset: graalpy-${{ env.GRAALPY_VERSION }}-darwin-aarch64.tar.gz
+            graalpy-asset: darwin-aarch64.tar.gz
 
     steps:
       - name: Checkout
