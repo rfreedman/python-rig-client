@@ -1,140 +1,100 @@
-name: Build and Release Native Executables with GraalPy
+name: Build and Release GraalPy Native Executables
 
 on:
   push:
     branches:
-      - main       # Trigger on pushes to main
+      - main
     tags:
-      - 'v*'       # Trigger on tag pushes
+      - 'v*'
   pull_request:
     branches: [ main ]
 
-env:
-  APP_NAME: myapp
-  ENTRYPOINT: app.py
-  VERSION: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'main-latest' }}
-
 jobs:
-  build:
+  linux-build:
+    runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
-        include:
-          # Linux x64 (Ubuntu)
-          - os: ubuntu-latest
-            graalpy-asset: linux-amd64
-            package: deb
-          - os: ubuntu-latest
-            graalpy-asset: linux-amd64
-            package: rpm
-          # Fedora / RPM-based Linux
-          - os: fedora-latest
-            graalpy-asset: linux-amd64
-            package: rpm
-          # Raspberry Pi (ARM64 Linux)
-          - os: ubuntu-22.04
-            graalpy-asset: linux-aarch64
-            package: deb
-          # macOS Intel
-          - os: macos-13
-            graalpy-asset: macos-amd64
-            package: none
-          # macOS ARM (Apple Silicon)
-          - os: macos-latest
-            graalpy-asset: macos-aarch64
-            package: none
-          # Windows
-          - os: windows-latest
-            graalpy-asset: windows-amd64
-            package: none
-
-    runs-on: ${{ matrix.os }}
-
+        arch: [amd64, aarch64]
+        package: [deb, rpm]
+    env:
+      APP_NAME: myapp
+      ENTRYPOINT: app.py
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install jq (if missing)
-        if: runner.os != 'Windows'
+      - name: Compute VERSION
         shell: bash
         run: |
-          if ! command -v jq &> /dev/null; then
-            if [[ "$RUNNER_OS" == "Linux" ]]; then
-              sudo apt-get update && sudo apt-get install -y jq || sudo dnf install -y jq
-            fi
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          else
+            VERSION="main-latest"
           fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "VERSION is $VERSION"
 
-      - name: Get latest GraalPy version
-        id: graalpy
+      - name: Get latest GraalPy release
         shell: bash
         run: |
-          echo "Fetching latest GraalPy release..."
           LATEST_TAG=$(curl -s https://api.github.com/repos/oracle/graalpython/releases/latest \
             | jq -r '.tag_name')
           LATEST_VERSION=${LATEST_TAG#graal-}
-          echo "Latest GraalPy version: $LATEST_VERSION"
           echo "GRAALPY_VERSION=$LATEST_VERSION" >> $GITHUB_ENV
+          echo "Latest GraalPy version: $LATEST_VERSION"
 
-      - name: Install GraalPy standalone
+      - name: Install GraalPy
         shell: bash
         run: |
-          EXT="tar.gz"
-          if [[ "${{ runner.os }}" == "Windows" ]]; then EXT="zip"; fi
-
-          FILENAME="graalpy-${GRAALPY_VERSION}-${{ matrix.graalpy-asset }}.${EXT}"
+          ARCH=${{ matrix.arch }}
+          EXT=tar.gz
+          FILENAME="graalpy-${GRAALPY_VERSION}-linux-${ARCH}.${EXT}"
           URL="https://github.com/oracle/graalpython/releases/download/graal-${GRAALPY_VERSION}/${FILENAME}"
-
-          echo "Downloading GraalPy from $URL"
+          echo "Downloading $URL"
           mkdir -p $HOME/graalpy
-          curl -L -o graalpy.pkg "$URL"
-
-          if [[ "$EXT" == "zip" ]]; then
-            unzip graalpy.pkg -d $HOME/graalpy
-          else
-            tar -xzf graalpy.pkg -C $HOME/graalpy --strip-components=1
-          fi
-
+          curl -L -f -o graalpy.pkg "$URL" || { echo "GraalPy asset not found for linux-$ARCH"; exit 1; }
+          tar -xzf graalpy.pkg -C $HOME/graalpy --strip-components=1
           echo "$HOME/graalpy/bin" >> $GITHUB_PATH
-
-      - name: Verify GraalPy installation
-        shell: bash
-        run: |
           graalpy --version
-          which graalpy
 
-      - name: Set up Python virtual env (GraalPy)
+      - name: Cache Python virtual environment
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: python-venv-${{ runner.os }}-${{ matrix.arch }}-${{ env.GRAALPY_VERSION }}
+          restore-keys: |
+            python-venv-${{ runner.os }}-${{ matrix.arch }}-
+
+      - name: Setup virtual environment
         shell: bash
         run: |
-          graalpy -m venv .venv
-          source .venv/bin/activate || source .venv/Scripts/activate
-          python -m pip install --upgrade pip wheel
-          if [ -f requirements.txt ]; then
-            python -m pip install -r requirements.txt
+          if [ ! -d ".venv" ]; then
+            graalpy -m venv .venv
           fi
+          source .venv/bin/activate
+          python -m pip install --upgrade pip wheel
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Build native executable
         shell: bash
         run: |
-          source .venv/bin/activate || source .venv/Scripts/activate
-          EXT=""
-          if [[ "$RUNNER_OS" == "Windows" ]]; then EXT=".exe"; fi
+          source .venv/bin/activate
           mkdir -p dist
           graalpy -m standalone native \
             --module "${ENTRYPOINT}" \
-            --output "dist/${APP_NAME}${EXT}" \
+            --output "dist/${APP_NAME}" \
             --venv ".venv"
-          ls -lah dist || dir dist
+          ls -lah dist
 
-      - name: Install fpm (for Linux packaging)
-        if: runner.os == 'Linux'
+      - name: Install fpm for packaging
+        if: ${{ matrix.package != 'none' }}
         shell: bash
         run: |
-          sudo apt-get update || sudo dnf install -y ruby ruby-devel gcc make rpm-build
-          sudo apt-get install -y ruby ruby-dev build-essential || true
+          sudo apt-get update
+          sudo apt-get install -y ruby ruby-dev build-essential
           sudo gem install --no-document fpm
 
-      - name: Package application (Linux only)
-        if: runner.os == 'Linux'
+      - name: Package application
+        if: ${{ matrix.package != 'none' }}
         shell: bash
         run: |
           mkdir -p pkg
@@ -147,14 +107,150 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.os }}-${{ matrix.graalpy-asset }}
+          name: linux-${{ matrix.arch }}-${{ matrix.package }}
           path: |
             dist/
             pkg/
 
+  macos-build:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    env:
+      APP_NAME: myapp
+      ENTRYPOINT: app.py
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute VERSION
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          else
+            VERSION="main-latest"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Get latest GraalPy release
+        shell: bash
+        run: |
+          LATEST_TAG=$(curl -s https://api.github.com/repos/oracle/graalpython/releases/latest \
+            | jq -r '.tag_name')
+          LATEST_VERSION=${LATEST_TAG#graal-}
+          echo "GRAALPY_VERSION=$LATEST_VERSION" >> $GITHUB_ENV
+          echo "Latest GraalPy version: $LATEST_VERSION"
+
+      - name: Install GraalPy
+        shell: bash
+        run: |
+          ARCH=${{ matrix.arch }}
+          EXT=tar.gz
+          FILENAME="graalpy-${GRAALPY_VERSION}-macos-${ARCH}.${EXT}"
+          URL="https://github.com/oracle/graalpython/releases/download/graal-${GRAALPY_VERSION}/${FILENAME}"
+          mkdir -p $HOME/graalpy
+          curl -L -f -o graalpy.pkg "$URL" || { echo "GraalPy asset not found for macos-$ARCH"; exit 1; }
+          tar -xzf graalpy.pkg -C $HOME/graalpy --strip-components=1
+          echo "$HOME/graalpy/bin" >> $GITHUB_PATH
+          graalpy --version
+
+      - name: Cache Python virtual environment
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: python-venv-${{ runner.os }}-${{ matrix.arch }}-${{ env.GRAALPY_VERSION }}
+          restore-keys: |
+            python-venv-${{ runner.os }}-${{ matrix.arch }}-
+
+      - name: Setup virtual env and build
+        shell: bash
+        run: |
+          if [ ! -d ".venv" ]; then
+            graalpy -m venv .venv
+          fi
+          source .venv/bin/activate
+          python -m pip install --upgrade pip wheel
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          mkdir -p dist
+          graalpy -m standalone native --module "${ENTRYPOINT}" --output "dist/${APP_NAME}" --venv ".venv"
+          ls -lah dist
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: dist/
+
+  windows-build:
+    runs-on: windows-latest
+    env:
+      APP_NAME: myapp
+      ENTRYPOINT: app.py
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute VERSION
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          else
+            VERSION="main-latest"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Get latest GraalPy release
+        shell: bash
+        run: |
+          LATEST_TAG=$(curl -s https://api.github.com/repos/oracle/graalpython/releases/latest \
+            | jq -r '.tag_name')
+          LATEST_VERSION=${LATEST_TAG#graal-}
+          echo "GRAALPY_VERSION=$LATEST_VERSION" >> $GITHUB_ENV
+          echo "Latest GraalPy version: $LATEST_VERSION"
+
+      - name: Install GraalPy
+        shell: bash
+        run: |
+          EXT=zip
+          FILENAME="graalpy-${GRAALPY_VERSION}-windows-amd64.${EXT}"
+          URL="https://github.com/oracle/graalpython/releases/download/graal-${GRAALPY_VERSION}/${FILENAME}"
+          mkdir -p $Env:USERPROFILE\graalpy
+          curl -L -f -o graalpy.pkg "$URL" || { echo "GraalPy asset not found for windows-amd64"; exit 1; }
+          powershell -Command "Expand-Archive graalpy.pkg -DestinationPath $Env:USERPROFILE\graalpy"
+          echo "$Env:USERPROFILE\graalpy\bin" >> $Env:GITHUB_PATH
+          graalpy --version
+
+      - name: Cache Python virtual environment
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: python-venv-${{ runner.os }}-windows-amd64-${{ env.GRAALPY_VERSION }}
+          restore-keys: |
+            python-venv-${{ runner.os }}-windows-amd64-
+
+      - name: Setup virtual env and build
+        shell: bash
+        run: |
+          if [ ! -d ".venv" ]; then
+            graalpy -m venv .venv
+          fi
+          source .venv/Scripts/activate
+          python -m pip install --upgrade pip wheel
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          mkdir -p dist
+          graalpy -m standalone native --module "${ENTRYPOINT}" --output "dist/${APP_NAME}.exe" --venv ".venv"
+          dir dist
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-amd64
+          path: dist/
+
   release:
     name: Create GitHub Release
-    needs: build
+    needs: [linux-build, macos-build, windows-build]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
@@ -162,6 +258,275 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: release_artifacts
+          # Can repeat per artifact name if needed
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release_artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+name: Build and Release GraalPy Native Executables
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  linux-build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, aarch64]
+        package: [deb, rpm]
+    env:
+      APP_NAME: myapp
+      ENTRYPOINT: app.py
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute VERSION
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          else
+            VERSION="main-latest"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "VERSION is $VERSION"
+
+      - name: Get latest GraalPy release
+        shell: bash
+        run: |
+          LATEST_TAG=$(curl -s https://api.github.com/repos/oracle/graalpython/releases/latest \
+            | jq -r '.tag_name')
+          LATEST_VERSION=${LATEST_TAG#graal-}
+          echo "GRAALPY_VERSION=$LATEST_VERSION" >> $GITHUB_ENV
+          echo "Latest GraalPy version: $LATEST_VERSION"
+
+      - name: Install GraalPy
+        shell: bash
+        run: |
+          ARCH=${{ matrix.arch }}
+          EXT=tar.gz
+          FILENAME="graalpy-${GRAALPY_VERSION}-linux-${ARCH}.${EXT}"
+          URL="https://github.com/oracle/graalpython/releases/download/graal-${GRAALPY_VERSION}/${FILENAME}"
+          echo "Downloading $URL"
+          mkdir -p $HOME/graalpy
+          curl -L -f -o graalpy.pkg "$URL" || { echo "GraalPy asset not found for linux-$ARCH"; exit 1; }
+          tar -xzf graalpy.pkg -C $HOME/graalpy --strip-components=1
+          echo "$HOME/graalpy/bin" >> $GITHUB_PATH
+          graalpy --version
+
+      - name: Cache Python virtual environment
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: python-venv-${{ runner.os }}-${{ matrix.arch }}-${{ env.GRAALPY_VERSION }}
+          restore-keys: |
+            python-venv-${{ runner.os }}-${{ matrix.arch }}-
+
+      - name: Setup virtual environment
+        shell: bash
+        run: |
+          if [ ! -d ".venv" ]; then
+            graalpy -m venv .venv
+          fi
+          source .venv/bin/activate
+          python -m pip install --upgrade pip wheel
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Build native executable
+        shell: bash
+        run: |
+          source .venv/bin/activate
+          mkdir -p dist
+          graalpy -m standalone native \
+            --module "${ENTRYPOINT}" \
+            --output "dist/${APP_NAME}" \
+            --venv ".venv"
+          ls -lah dist
+
+      - name: Install fpm for packaging
+        if: ${{ matrix.package != 'none' }}
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ruby ruby-dev build-essential
+          sudo gem install --no-document fpm
+
+      - name: Package application
+        if: ${{ matrix.package != 'none' }}
+        shell: bash
+        run: |
+          mkdir -p pkg
+          if [[ "${{ matrix.package }}" == "deb" ]]; then
+            fpm -s dir -t deb -n $APP_NAME -v $VERSION ./dist/${APP_NAME}=/usr/local/bin/${APP_NAME}
+          elif [[ "${{ matrix.package }}" == "rpm" ]]; then
+            fpm -s dir -t rpm -n $APP_NAME -v $VERSION ./dist/${APP_NAME}=/usr/local/bin/${APP_NAME}
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}-${{ matrix.package }}
+          path: |
+            dist/
+            pkg/
+
+  macos-build:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    env:
+      APP_NAME: myapp
+      ENTRYPOINT: app.py
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute VERSION
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          else
+            VERSION="main-latest"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Get latest GraalPy release
+        shell: bash
+        run: |
+          LATEST_TAG=$(curl -s https://api.github.com/repos/oracle/graalpython/releases/latest \
+            | jq -r '.tag_name')
+          LATEST_VERSION=${LATEST_TAG#graal-}
+          echo "GRAALPY_VERSION=$LATEST_VERSION" >> $GITHUB_ENV
+          echo "Latest GraalPy version: $LATEST_VERSION"
+
+      - name: Install GraalPy
+        shell: bash
+        run: |
+          ARCH=${{ matrix.arch }}
+          EXT=tar.gz
+          FILENAME="graalpy-${GRAALPY_VERSION}-macos-${ARCH}.${EXT}"
+          URL="https://github.com/oracle/graalpython/releases/download/graal-${GRAALPY_VERSION}/${FILENAME}"
+          mkdir -p $HOME/graalpy
+          curl -L -f -o graalpy.pkg "$URL" || { echo "GraalPy asset not found for macos-$ARCH"; exit 1; }
+          tar -xzf graalpy.pkg -C $HOME/graalpy --strip-components=1
+          echo "$HOME/graalpy/bin" >> $GITHUB_PATH
+          graalpy --version
+
+      - name: Cache Python virtual environment
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: python-venv-${{ runner.os }}-${{ matrix.arch }}-${{ env.GRAALPY_VERSION }}
+          restore-keys: |
+            python-venv-${{ runner.os }}-${{ matrix.arch }}-
+
+      - name: Setup virtual env and build
+        shell: bash
+        run: |
+          if [ ! -d ".venv" ]; then
+            graalpy -m venv .venv
+          fi
+          source .venv/bin/activate
+          python -m pip install --upgrade pip wheel
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          mkdir -p dist
+          graalpy -m standalone native --module "${ENTRYPOINT}" --output "dist/${APP_NAME}" --venv ".venv"
+          ls -lah dist
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: dist/
+
+  windows-build:
+    runs-on: windows-latest
+    env:
+      APP_NAME: myapp
+      ENTRYPOINT: app.py
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute VERSION
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          else
+            VERSION="main-latest"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Get latest GraalPy release
+        shell: bash
+        run: |
+          LATEST_TAG=$(curl -s https://api.github.com/repos/oracle/graalpython/releases/latest \
+            | jq -r '.tag_name')
+          LATEST_VERSION=${LATEST_TAG#graal-}
+          echo "GRAALPY_VERSION=$LATEST_VERSION" >> $GITHUB_ENV
+          echo "Latest GraalPy version: $LATEST_VERSION"
+
+      - name: Install GraalPy
+        shell: bash
+        run: |
+          EXT=zip
+          FILENAME="graalpy-${GRAALPY_VERSION}-windows-amd64.${EXT}"
+          URL="https://github.com/oracle/graalpython/releases/download/graal-${GRAALPY_VERSION}/${FILENAME}"
+          mkdir -p $Env:USERPROFILE\graalpy
+          curl -L -f -o graalpy.pkg "$URL" || { echo "GraalPy asset not found for windows-amd64"; exit 1; }
+          powershell -Command "Expand-Archive graalpy.pkg -DestinationPath $Env:USERPROFILE\graalpy"
+          echo "$Env:USERPROFILE\graalpy\bin" >> $Env:GITHUB_PATH
+          graalpy --version
+
+      - name: Cache Python virtual environment
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: python-venv-${{ runner.os }}-windows-amd64-${{ env.GRAALPY_VERSION }}
+          restore-keys: |
+            python-venv-${{ runner.os }}-windows-amd64-
+
+      - name: Setup virtual env and build
+        shell: bash
+        run: |
+          if [ ! -d ".venv" ]; then
+            graalpy -m venv .venv
+          fi
+          source .venv/Scripts/activate
+          python -m pip install --upgrade pip wheel
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          mkdir -p dist
+          graalpy -m standalone native --module "${ENTRYPOINT}" --output "dist/${APP_NAME}.exe" --venv ".venv"
+          dir dist
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-amd64
+          path: dist/
+
+  release:
+    name: Create GitHub Release
+    needs: [linux-build, macos-build, windows-build]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release_artifacts
+          # Can repeat per artifact name if needed
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
