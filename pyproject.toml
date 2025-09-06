@@ -20,6 +20,4 @@ project_name = "rigclient"         # Used for the native project folder
 
 [tool.briefcase.app.rigclient]
 module = "rigclient"               # Points to rigclient/rigclient.py
-requires = ["requests"]            # Add any Python dependencies your app needs
-
 requires = ["QtPy==2.4.3, pywebview==6.0"]  # Add your Python dependencies here
