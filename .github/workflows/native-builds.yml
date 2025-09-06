@@ -7,8 +7,8 @@ on:
   pull_request:
 
 env:
-  APP_NAME: myapp
-  ENTRYPOINT: app.py
+  APP_NAME: rigclient
+  ENTRYPOINT: rigclient.py
   VERSION: ${{ github.ref_name }}
 
 defaults:
