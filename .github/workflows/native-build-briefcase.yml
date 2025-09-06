@@ -36,7 +36,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install briefcase==0.5.13
+          pip install briefcase==0.3.25
           pip install -r requirements.txt
 
       - name: Build Windows Executable
@@ -83,7 +83,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install briefcase==0.5.13
+          pip install briefcase==0.3.25
           pip install -r requirements.txt
 
       - name: Build macOS App
@@ -130,7 +130,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install briefcase==0.5.13
+          pip install briefcase==0.3.25
           pip install -r requirements.txt
 
       - name: Build Linux Executable
