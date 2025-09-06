@@ -1,68 +1,67 @@
-name: Build native executables (GraalPy standalone + GraalVM Community)
+name: Build Native Executables with GraalPy
 
 on:
   push:
     branches: [ main ]
-    tags: [ "v*", "V*" ]
   pull_request:
+    branches: [ main ]
 
 env:
-  APP_NAME: rigclient
-  ENTRYPOINT: rigclient.py
-  VERSION: ${{ github.ref_name }}
-  GRAALPY_VERSION: 24.2.2  # latest stable GraalPy release
-
-defaults:
-  run:
-    shell: bash
+  GRAALPY_VERSION: "24.2.2"
 
 jobs:
   build:
-    name: Build ${{ matrix.os }}-${{ matrix.arch }}
-    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Linux x64
+          # Linux x64 (Ubuntu)
           - os: ubuntu-latest
-            arch: x64
             graalpy-asset: linux-amd64
-          # Linux ARM64 (Raspberry Pi)
-          - os: ubuntu-24.04-arm64
-            arch: arm64
+            package: deb
+          - os: ubuntu-latest
+            graalpy-asset: linux-amd64
+            package: rpm
+
+          # Fedora / RPM-based Linux
+          - os: fedora-latest
+            graalpy-asset: linux-amd64
+            package: rpm
+
+          # Raspberry Pi (ARM64 Linux)
+          - os: ubuntu-22.04
             graalpy-asset: linux-aarch64
-          # Windows x64
-          - os: windows-latest
-            arch: x64
-            graalpy-asset: windows-amd64
+            package: deb
+
           # macOS Intel
           - os: macos-13
-            arch: x64
-            graalpy-asset: darwin-amd64
+            graalpy-asset: macos-amd64
+            package: none
+
           # macOS ARM (Apple Silicon)
           - os: macos-latest
-            arch: arm64
-            graalpy-asset: darwin-aarch64
+            graalpy-asset: macos-aarch64
+            package: none
+
+          # Windows
+          - os: windows-latest
+            graalpy-asset: windows-amd64
+            package: none
+
+    runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up GraalVM (for native-image)
-        uses: graalvm/setup-graalvm@v1
-        with:
-          distribution: graalvm-community
-          java-version: '21'
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Install GraalPy standalone
+        shell: bash
         run: |
           EXT="tar.gz"
           if [[ "${{ runner.os }}" == "Windows" ]]; then EXT="zip"; fi
 
           FILENAME="graalpy-${GRAALPY_VERSION}-${{ matrix.graalpy-asset }}.${EXT}"
-          URL="https://github.com/oracle/graalpython/releases/download/v${GRAALPY_VERSION}/${FILENAME}"
+          URL="https://github.com/oracle/graalpython/releases/download/graal-${GRAALPY_VERSION}/${FILENAME}"
 
           echo "Downloading GraalPy from $URL"
           mkdir -p $HOME/graalpy
@@ -71,7 +70,4 @@ jobs:
           if [[ "$EXT" == "zip" ]]; then
             unzip graalpy.pkg -d $HOME/graalpy
           else
-            tar -xzf graalpy.pkg -C $HOME/graalpy --strip-components=1
-          fi
-
-          echo "$HOME/graalpy/bin" >> $GITHU
+            tar -xzf graalpy.pkg -C $HOME/graalpy --strip-comp
