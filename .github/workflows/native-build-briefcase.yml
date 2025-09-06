@@ -34,9 +34,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
+          python -m pip install --upgrade pip setuptools wheel
           pip install briefcase==0.3.25
-          pip install -r requirements.txt
+          pip install QtPy==2.4.3 pywebview==6.0
 
       - name: Build Windows Executable
         run: |
@@ -77,11 +77,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Install dependencies
+      - name: Install dependencies (macOS arm64 fix)
         run: |
-          python -m pip install --upgrade pip
-          pip install briefcase==0.3.25
-          pip install -r requirements.txt
+          python3 -m pip install --upgrade pip setuptools wheel
+          pip3 install briefcase==0.3.25
+          pip3 install QtPy==2.4.3 pywebview==6.0
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
+          ARCHFLAGS: "-arch x86_64"
 
       - name: Build macOS App
         run: |
@@ -124,9 +127,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
+          python -m pip install --upgrade pip setuptools wheel
           pip install briefcase==0.3.25
-          pip install -r requirements.txt
+          pip install QtPy==2.4.3 pywebview==6.0
 
       - name: Build Linux Executable
         run: |
