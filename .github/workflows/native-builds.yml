@@ -1,4 +1,4 @@
-name: Build native executables (GraalPy / GraalVM Community)
+name: Build native executables (GraalPy standalone + GraalVM Community)
 
 on:
   push:
@@ -10,6 +10,7 @@ env:
   APP_NAME: rigclient
   ENTRYPOINT: rigclient.py
   VERSION: ${{ github.ref_name }}
+  GRAALPY_VERSION: 24.1.1   # adjust to latest release from https://github.com/oracle/graalpython/releases
 
 defaults:
   run:
@@ -26,33 +27,51 @@ jobs:
           # Linux x64
           - os: ubuntu-latest
             arch: x64
+            graalpy-asset: graalpy-${{ env.GRAALPY_VERSION }}-linux-amd64.tar.gz
           # Linux ARM64 (Raspberry Pi)
           - os: ubuntu-24.04-arm64
             arch: arm64
+            graalpy-asset: graalpy-${{ env.GRAALPY_VERSION }}-linux-aarch64.tar.gz
           # Windows x64
           - os: windows-latest
             arch: x64
+            graalpy-asset: graalpy-${{ env.GRAALPY_VERSION }}-windows-amd64.zip
           # macOS Intel
           - os: macos-13
             arch: x64
+            graalpy-asset: graalpy-${{ env.GRAALPY_VERSION }}-darwin-amd64.tar.gz
           # macOS ARM (Apple Silicon)
           - os: macos-latest
             arch: arm64
+            graalpy-asset: graalpy-${{ env.GRAALPY_VERSION }}-darwin-aarch64.tar.gz
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up GraalVM Community
+      - name: Set up GraalVM (for native-image)
         uses: graalvm/setup-graalvm@v1
         with:
           distribution: graalvm-community
           java-version: '21'
-          components: 'native-image,python'
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          native-image-job-reports: 'true'
 
-      - name: Confirm versions
+      - name: Install GraalPy standalone
+        run: |
+          URL="https://github.com/oracle/graalpython/releases/download/v${GRAALPY_VERSION}/${{ matrix.graalpy-asset }}"
+          echo "Downloading GraalPy from $URL"
+          mkdir -p $HOME/graalpy
+          curl -L -o graalpy.pkg "$URL"
+
+          if [[ "${{ matrix.graalpy-asset }}" == *.zip ]]; then
+            unzip graalpy.pkg -d $HOME/graalpy
+          else
+            tar -xzf graalpy.pkg -C $HOME/graalpy --strip-components=1
+          fi
+
+          echo "$HOME/graalpy/bin" >> $GITHUB_PATH
+
+      - name: Confirm tools
         run: |
           java -version
           native-image --version
@@ -79,7 +98,7 @@ jobs:
             --venv ".venv"
           ls -lah dist || dir dist
 
-      - name: Package .deb (Debian/Ubuntu)
+      - name: Package .deb (Debian/Ubuntu only)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
@@ -108,18 +127,24 @@ jobs:
     steps:
       - name: Install dependencies
         run: |
-          dnf install -y git ruby ruby-devel gcc make rpm-build which findutils
+          dnf install -y git curl unzip tar ruby ruby-devel gcc make rpm-build which findutils
           gem install --no-document fpm
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Set up GraalVM Community
+      - name: Set up GraalVM (for native-image)
         uses: graalvm/setup-graalvm@v1
         with:
           distribution: graalvm-community
           java-version: '21'
-          components: 'native-image,python'
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Confirm versions
+      - name: Install GraalPy standalone
+        run: |
+          URL="https://github.com/oracle/graalpython/releases/download/v${GRAALPY_VERSION}/graalpy-${GRAALPY_VERSION}-linux-amd64.tar.gz"
+          mkdir -p $HOME/graalpy
+          curl -L -o graalpy.tar.gz "$URL"
+          tar -xzf graalpy.tar.gz -C $HOME/graalpy --strip-components=1
+          echo "$HOME/graalpy/bin" >> $GITHUB_PATH
+      - name: Confirm tools
         run: |
           java -version
           native-image --version
