@@ -36,7 +36,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip setuptools wheel
           pip install briefcase==0.3.25
-          pip install QtPy==2.4.3 pywebview==6.0
+          pip install QtPy==2.4.3 pywebview==5.7
 
       - name: Build Windows Executable
         run: |
@@ -58,6 +58,9 @@ jobs:
   build-macos:
     name: Build macOS App
     runs-on: macos-latest
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+      ARCHFLAGS: "-arch x86_64"
     steps:
       - uses: actions/checkout@v3
 
@@ -77,14 +80,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Install dependencies (macOS arm64 fix)
+      - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip setuptools wheel
           pip3 install briefcase==0.3.25
-          pip3 install QtPy==2.4.3 pywebview==6.0
-        env:
-          MACOSX_DEPLOYMENT_TARGET: "11.0"
-          ARCHFLAGS: "-arch x86_64"
+          pip3 install QtPy==2.4.3 pywebview==5.7 --only-binary=:all:
 
       - name: Build macOS App
         run: |
@@ -129,7 +129,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip setuptools wheel
           pip install briefcase==0.3.25
-          pip install QtPy==2.4.3 pywebview==6.0
+          pip install QtPy==2.4.3 pywebview==5.7
 
       - name: Build Linux Executable
         run: |
