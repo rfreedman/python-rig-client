@@ -10,7 +10,7 @@ env:
   APP_NAME: rigclient
   ENTRYPOINT: rigclient.py
   VERSION: ${{ github.ref_name }}
-  GRAALPY_VERSION: 24.1.1   # latest stable GraalPy release
+  GRAALPY_VERSION: 24.2.2  # latest stable GraalPy release
 
 defaults:
   run:
