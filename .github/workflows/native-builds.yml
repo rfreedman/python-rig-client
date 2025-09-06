@@ -1,13 +1,16 @@
-name: Build Native Executables with GraalPy
+name: Build and Release Native Executables with GraalPy
 
 on:
   push:
-    branches: [ main ]
+    tags:
+      - 'v*'   # Trigger on tags
   pull_request:
     branches: [ main ]
 
 env:
-  GRAALPY_VERSION: "24.2.2"
+  APP_NAME: myapp
+  ENTRYPOINT: app.py
+  VERSION: "${GITHUB_REF#refs/tags/}"   # automatically use the tag name
 
 jobs:
   build:
@@ -22,27 +25,22 @@ jobs:
           - os: ubuntu-latest
             graalpy-asset: linux-amd64
             package: rpm
-
           # Fedora / RPM-based Linux
           - os: fedora-latest
             graalpy-asset: linux-amd64
             package: rpm
-
           # Raspberry Pi (ARM64 Linux)
           - os: ubuntu-22.04
             graalpy-asset: linux-aarch64
             package: deb
-
           # macOS Intel
           - os: macos-13
             graalpy-asset: macos-amd64
             package: none
-
           # macOS ARM (Apple Silicon)
           - os: macos-latest
             graalpy-asset: macos-aarch64
             package: none
-
           # Windows
           - os: windows-latest
             graalpy-asset: windows-amd64
@@ -53,6 +51,27 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Install jq (if missing)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          if ! command -v jq &> /dev/null; then
+            if [[ "$RUNNER_OS" == "Linux" ]]; then
+              sudo apt-get update && sudo apt-get install -y jq || sudo dnf install -y jq
+            fi
+          fi
+
+      - name: Get latest GraalPy version
+        id: graalpy
+        shell: bash
+        run: |
+          echo "Fetching latest GraalPy release..."
+          LATEST_TAG=$(curl -s https://api.github.com/repos/oracle/graalpython/releases/latest \
+            | jq -r '.tag_name')
+          LATEST_VERSION=${LATEST_TAG#graal-}
+          echo "Latest GraalPy version: $LATEST_VERSION"
+          echo "GRAALPY_VERSION=$LATEST_VERSION" >> $GITHUB_ENV
 
       - name: Install GraalPy standalone
         shell: bash
@@ -70,4 +89,81 @@ jobs:
           if [[ "$EXT" == "zip" ]]; then
             unzip graalpy.pkg -d $HOME/graalpy
           else
-            tar -xzf graalpy.pkg -C $HOME/graalpy --strip-comp
+            tar -xzf graalpy.pkg -C $HOME/graalpy --strip-components=1
+          fi
+
+          echo "$HOME/graalpy/bin" >> $GITHUB_PATH
+
+      - name: Verify GraalPy installation
+        shell: bash
+        run: |
+          graalpy --version
+          which graalpy
+
+      - name: Set up Python virtual env (GraalPy)
+        shell: bash
+        run: |
+          graalpy -m venv .venv
+          source .venv/bin/activate || source .venv/Scripts/activate
+          python -m pip install --upgrade pip wheel
+          if [ -f requirements.txt ]; then
+            python -m pip install -r requirements.txt
+          fi
+
+      - name: Build native executable
+        shell: bash
+        run: |
+          source .venv/bin/activate || source .venv/Scripts/activate
+          EXT=""
+          if [[ "$RUNNER_OS" == "Windows" ]]; then EXT=".exe"; fi
+          mkdir -p dist
+          graalpy -m standalone native \
+            --module "${ENTRYPOINT}" \
+            --output "dist/${APP_NAME}${EXT}" \
+            --venv ".venv"
+          ls -lah dist || dir dist
+
+      - name: Install fpm (for Linux packaging)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update || sudo dnf install -y ruby ruby-devel gcc make rpm-build
+          sudo apt-get install -y ruby ruby-dev build-essential || true
+          sudo gem install --no-document fpm
+
+      - name: Package application (Linux only)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p pkg
+          if [[ "${{ matrix.package }}" == "deb" ]]; then
+            fpm -s dir -t deb -n $APP_NAME -v $VERSION ./dist/${APP_NAME}=/usr/local/bin/${APP_NAME}
+          elif [[ "${{ matrix.package }}" == "rpm" ]]; then
+            fpm -s dir -t rpm -n $APP_NAME -v $VERSION ./dist/${APP_NAME}=/usr/local/bin/${APP_NAME}
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.graalpy-asset }}
+          path: |
+            dist/
+            pkg/
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release_artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release_artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
