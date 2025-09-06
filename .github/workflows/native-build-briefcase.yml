@@ -55,7 +55,7 @@ jobs:
           name: rigclient-windows-${{ github.run_number }}
           path: rigclient-windows-${{ github.run_number }}.zip
 
-  build-macos:
+  build-macosx:
     name: Build macOS App
     runs-on: macos-latest
     env:
